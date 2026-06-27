@@ -1,5 +1,11 @@
 import streamlit as st
 import requests
+import os
+import html
+
+# Flask runs as an internal sidecar process inside the same container,
+# so this stays localhost even in production on Render.
+BACKEND_URL = os.environ.get("BACKEND_URL", "http://127.0.0.1:5000")
 
 st.set_page_config(
     page_title="LexiScan Auto",
@@ -79,14 +85,15 @@ if menu == "Upload & Process":
                 try:
 
                     response = requests.post(
-                        "http://127.0.0.1:5000/process",
+                        f"{BACKEND_URL}/process",
                         files={
                             "file": (
                                 uploaded_file.name,
                                 uploaded_file,
                                 "application/pdf"
                             )
-                        }
+                        },
+                        timeout=120
                     )
 
                     if response.status_code == 200:
@@ -101,7 +108,7 @@ if menu == "Upload & Process":
                         st.markdown(
                             f"""
                             <div class='card'>
-                            {data['text_sample']}
+                            {html.escape(data['text_sample']).replace(chr(10), '<br>')}
                             </div>
                             """,
                             unsafe_allow_html=True
@@ -118,8 +125,8 @@ if menu == "Upload & Process":
                             st.markdown(
                                 f"""
                                 <div class='card'>
-                                <b>Text:</b> {ent['text']} <br><br>
-                                <b>Label:</b> {ent['label']}
+                                <b>Text:</b> {html.escape(ent['text'])} <br><br>
+                                <b>Label:</b> {html.escape(ent['label'])}
                                 </div>
                                 """,
                                 unsafe_allow_html=True
@@ -128,6 +135,8 @@ if menu == "Upload & Process":
                     else:
                         st.error("❌ API Error")
 
+                except requests.exceptions.Timeout:
+                    st.error("❌ The document took too long to process. Try a smaller file.")
                 except Exception as e:
                     st.error(f"❌ Connection Error: {e}")
 
